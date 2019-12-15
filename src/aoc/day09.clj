@@ -1,16 +1,15 @@
 (ns aoc.day09
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [clojure.core.async :as async]))
 
 (defn parse [s]
   (mapv #(Long/parseLong (str/trim %))
         (str/split (slurp s) #",")))
 
-(defn run [program input]
-  (let [ram (long-array 40000000 program)]
+(defn exec [ram cin cout]
+  (async/go
     (loop [pc 0
-           base 0
-           in input
-           out []]
+           base 0]
       (defn memset [addr mode n]
         (case mode
           0 (aset ram (aget ram addr) n)
@@ -31,64 +30,62 @@
                                (+ (memget (+ pc 1) mode1)
                                   (memget (+ pc 2) mode2)))
                        (+ pc 4))
-                   base
-                   in
-                   out)
+                   base)
           2 (recur (do (memset (+ pc 3) mode3
                                (* (memget (+ pc 1) mode1)
                                   (memget (+ pc 2) mode2)))
                        (+ pc 4))
-                   base
-                   in
-                   out)
+                   base)
           3 (recur (do (memset (+ pc 1) mode1
-                               (first in))
+                               (async/<! cin))
                        (+ pc 2))
-                   base
-                   (rest in)
-                   out)
-          4 (recur (+ pc 2)
-                   base
-                   in
-                   (conj out (memget (+ pc 1) mode1)))
+                   base)
+          4 (recur (do (async/>! cout (memget (+ pc 1) mode1))
+                       (+ pc 2))
+                   base)
           5 (recur (if (not= 0 (memget (+ pc 1) mode1))
                      (memget (+ pc 2) mode2)
                      (+ pc 3))
-                   base
-                   in
-                   out)
+                   base)
           6 (recur (if (= 0 (memget (+ pc 1) mode1))
                      (memget (+ pc 2) mode2)
                      (+ pc 3))
-                   base
-                   in
-                   out)
+                   base)
           7 (recur (do (memset (+ pc 3) mode3
                                (if (< (memget (+ pc 1) mode1)
                                       (memget (+ pc 2) mode2))
                                  1
                                  0))
                        (+ pc 4))
-                   base
-                   in
-                   out)
+                   base)
           8 (recur (do (memset (+ pc 3) mode3
                                (if (= (memget (+ pc 1) mode1)
                                       (memget (+ pc 2) mode2))
                                  1
                                  0))
                        (+ pc 4))
-                   base
-                   in
-                   out)
+                   base)
           9 (recur (+ pc 2)
-                   (+ base (memget (+ pc 1) mode1))
-                   in
-                   out)
-          99 out)))))
+                   (+ base (memget (+ pc 1) mode1)))
+          99 "exit")))))
+
+(defn run [pgm n]
+  (let [ram (long-array 40000000 pgm)
+        cin (async/chan 100)
+        cout (async/chan 100)
+        c (exec ram cin cout)]
+    (async/>!! cin n)
+    (async/go 
+      (while (let [x (async/<!! cout)]
+               (if x (println x))
+               x)))
+    (async/<!! c)
+    (async/close! cin)
+    (async/close! cout)))
+
 
 (defn day09-1 [pgm]
-  (run pgm [1]))
+  (run pgm 1))
 
 (defn day09-2 [pgm]
-  (run pgm [2]))
+  (run pgm 2))
