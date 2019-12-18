@@ -41,13 +41,13 @@
   ([a b & c]
    (reduce lcm (lcm a b) c)))
 
-(defn day09-1 [input]
+(defn day12-1 [input]
   (let [moons (mapv (fn [v] (into [] (concat v [0 0 0]))) input)
         end-state (nth (iterate step moons) 1000)]
     (energy end-state)))
 
 
-(defn day09-2 [input]
+(defn day12-2 [input]
   (let [moons (mapv (fn [v] (into [] (concat v [0 0 0]))) input)]
     ;; check repeats of each of x y and z
     ))
