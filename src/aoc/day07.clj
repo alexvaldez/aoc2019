@@ -1,84 +1,11 @@
 (ns aoc.day07
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [clojure.core.async :as async]
+            [aoc.intcode :as ic]))
 
 (defn parse [s]
   (mapv #(Long/parseLong (str/trim %))
         (str/split (slurp s) #",")))
-
-(defn exec [program input]
-  (loop [pgm program
-         pc 0
-         in input
-         out []]
-    (defn
-         derf [addr mode]
-                 (case mode
-                   0 (pgm (pgm addr))
-                   1 (pgm addr)))
-    (let [op (pgm pc)
-          opcode (mod op 100)
-          mode1 (int (mod (/ op 100) 10))
-          mode2 (int (mod (/ op 1000) 10))
-          mode3 (int (mod (/ op 10000) 10))]
-      (case opcode
-        1 (recur (assoc pgm
-                        (pgm (+ pc 3))
-                        (+ (derf (+ pc 1) mode1)
-                           (derf (+ pc 2) mode2)))
-                 (+ pc 4)
-                 in
-                 out)
-        2 (recur (assoc pgm
-                        (pgm (+ pc 3))
-                        (* (derf (+ pc 1) mode1)
-                           (derf (+ pc 2) mode2)))
-                 (+ pc 4)
-                 in
-                 out)
-        3 (recur (assoc pgm
-                        (pgm (+ pc 1))
-                        (first in))
-                 (+ pc 2)
-                 (rest in)
-                 out)
-        4 (recur pgm
-                 (+ pc 2)
-                 in
-                 (conj out (derf (+ pc 1) mode1)))
-        5 (recur pgm
-                 (if (not= 0 (derf (+ pc 1) mode1))
-                   (derf (+ pc 2) mode2)
-                   (+ pc 3))
-                 in
-                 out)
-        6 (recur pgm
-                 (if (= 0 (derf (+ pc 1) mode1))
-                   (derf (+ pc 2) mode2)
-                   (+ pc 3))
-                   in
-                   out)
-        7 (recur (assoc pgm
-                        (pgm (+ pc 3))
-                        (if (< (derf (+ pc 1) mode1)
-                               (derf (+ pc 2) mode2))
-                          1
-                          0))
-                 (+ pc 4)
-                 in
-                 out)
-        8 (recur (assoc pgm
-                        (pgm (+ pc 3))
-                        (if (= (derf (+ pc 1) mode1)
-                               (derf (+ pc 2) mode2))
-                          1
-                          0))
-                 (+ pc 4)
-                 in
-                 out)
-        99 [pgm out]))))
-
-(defn run [program input]
-  (last (exec program input)))
 
 (defn perm [a]
   (if (empty? a)
@@ -97,10 +24,33 @@
   (apply max
          (map (fn [v]
                 (reduce (fn [in n]
-                          (first (run input [n in])))
+                          (first (ic/run input [n in])))
                         0
                         v))
               (perm [0 1 2 3 4]))))
 
+(defn feedback [input v]
+  (let [cha (async/chan 100)
+        chb (async/chan 100)
+        chc (async/chan 100)
+        chd (async/chan 100)
+        che (async/chan 100)]
+    (async/>!! cha (v 0))
+    (async/>!! chb (v 1))
+    (async/>!! chc (v 2))
+    (async/>!! chd (v 3))
+    (async/>!! che (v 4))
+    (async/>!! cha 0)
+    (let [vma (ic/exec (long-array 100000 input) cha chb)
+          vmb (ic/exec (long-array 100000 input) chb chc)
+          vmc (ic/exec (long-array 100000 input) chc chd)
+          vmd (ic/exec (long-array 100000 input) chd che)
+          vme (ic/exec (long-array 100000 input) che cha)]
+      (async/<!! vme))))
 
+(defn day07-2 [input]
+  (apply max
+         (map (fn [v]
+                (feedback input v))
+              (perm [5 6 7 8 9]))))
 
