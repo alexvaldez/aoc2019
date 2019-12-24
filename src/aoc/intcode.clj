@@ -88,7 +88,13 @@
                    (+ base (memget ram (+ pc 1) mode1 base))
                    rc)
           ; exit
-          99 rc)))))
+          99 rc
+          (do
+            (println "invalid opcode " opcode " at " pc "terminating")
+            ;(recur (inc pc)
+            ;       base
+            ;       rc)
+            ))))))
 
 (defn collect [ch]
     (async/go 
